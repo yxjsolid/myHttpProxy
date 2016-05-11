@@ -23,17 +23,14 @@ class httpRawProxyServer():
         tsk = threading.Thread(target=self.doProxy, args=(conn, ))
         tsk.start()
 
-    def clientRead(self, conn):
-        conn.setblocking(1)
-        rfile = conn.makefile('rb', -1)
-        req = ""
+    def httpRead(self, rfile):
         contentLen = 0
-        while 1:
-            buf = rfile.readline(-1)
+        req = ""
+        while True:
+            buf = rfile.readline(65535)
             if not buf:
                 break
             req += buf
-            # print [buf]
             if "content-length" in buf.lower():
                 contentLen = int(buf.strip().split(":")[-1])
 
@@ -41,46 +38,45 @@ class httpRawProxyServer():
                 if contentLen == 0:
                     break
                 else:
-                    help(rfile)
                     buf = rfile.read(contentLen)
                     req += buf
                     break
-
         return req
+
+
+    def clientRead(self, conn):
+        conn.setblocking(1)
+        rfile = conn.makefile('rb', 65535)
+        return self.httpRead(rfile)
 
     def toServer(self, buf):
         s1 = socket.socket()
         s1.connect((self.hostIp,self.hostPort))
         s1.sendall(buf.encode())
 
-        resp = b''
         rfile = s1.makefile('rb', 65535)
-
-        while 1:
-            ddd = rfile.readline(65535)
-
-            if not ddd:
-                break
-            resp += ddd
-
-        return resp
+        return self.httpRead(rfile)
 
     def doProxy(self, conn):
         req = self.clientRead(conn)
+        # print req
+
         resp = self.toServer(req)
+        # print resp
 
         conn.sendall(resp)
         conn.close()
+        # print "done"
 
         pass
 
 
 if __name__ == "__main__":
 
-    myIp = "127.0.0.1"
+    myIp = "10.103.12.31"
     myPort = 80
 
-    proxyToIp = "10.103.12.251"
+    proxyToIp = "192.168.8.1"
     proxyToPort = 80
 
     srv = httpRawProxyServer(myIp, myPort, proxyToIp, proxyToPort)
