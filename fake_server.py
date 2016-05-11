@@ -1,6 +1,7 @@
 from flask import Flask, request, make_response
 from werkzeug.routing import BaseConverter
 import requests
+from requests import Session
 
 class RegexConverter(BaseConverter):
     def __init__(self, map, *args):
@@ -10,7 +11,13 @@ class RegexConverter(BaseConverter):
 app = Flask(__name__, static_folder="download",static_url_path='')
 app.url_map.converters['regex'] = RegexConverter
 
-target = "10.103.12.251"
+
+ourIp = "10.103.12.150"
+target = "192.168.8.1"
+rawproxy = "10.103.12.31"
+
+
+
 
 @app.route('/<regex(".*"):url>', methods=['GET','POST'])
 def test(url):
@@ -29,28 +36,40 @@ def test(url):
                 val = target
 
             if key.lower() == "referer":
-                val = val.replace('10.103.12.31', target)
+                val = val.replace(ourIp, target)
                 # print val
 
 
             newHeaders[key] = str(val)
 
-    data = request.data
+    #data = request.data
+    request.environ['CONTENT_TYPE'] = 'application/something_Flask_ignores'
+    data = request.get_data()
 
-    backendURL = r"http://%s/"%target + url
+    backendURL = r"http://%s/"%rawproxy + url
+    isHome = 0
+    if "home.html" in url:
+        isHome = 1
+        #return
+
+
     if request.method == "GET":
-        print newHeaders
+        #print newHeaders
         r = requests.get(backendURL, headers=newHeaders, data=data, allow_redirects=False)
     elif request.method == "POST":
-        # print newHeaders
+        s = Session()
+
+
         r = requests.post(backendURL, headers=newHeaders, data=data, allow_redirects=False)
         # help(r)
-        # print r.status_code
-        # print r.headers
+
+        #print r.status_code
+        #print r.headers
+        #print data
         #
-        # print r.raw.data
-        # print r.text
-        # print r.content
+        #print r.raw.data
+        #print r.text
+        #print r.content
 
 
     resp = make_response()
@@ -61,18 +80,22 @@ def test(url):
     for key, v in r.headers.iteritems():
         # print key, v
         if key.lower() == "location":
-            v = v.replace(target, '10.103.12.31')
+            v = v.replace(target, ourIp)
 
         if key.lower() == "Content-Encoding".lower():
-            print key
+            #print key
             continue
 
         resp.headers[key] = v
 
     # help(resp)
-    resp.data = r.content
+    #resp.data = r.content[3:-1]
+    #print r.content[3:-1]
 
-    resp.set_data(r.content)
+    if isHome:
+        resp.set_data(r.content[3:-1])
+    else:
+        resp.set_data(r.content)
 
     # help(resp)
     return resp
@@ -82,4 +105,4 @@ def test(url):
 if __name__ == "__main__":
     context = ('cert.pem', 'key.pem')
     # app.run(host="10.103.12.31", port=443, debug=1, ssl_context = context)
-    app.run(host="10.103.12.31", port=80, debug=0, threaded=True)
+    app.run(host=ourIp, port=80, debug=0, threaded=True)
